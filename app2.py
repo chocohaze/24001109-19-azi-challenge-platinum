@@ -7,6 +7,7 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.preprocessing.text import Tokenizer
 import h5py as h5
+import joblib
 
 from sklearn.feature_extraction.text import CountVectorizer
 
@@ -107,6 +108,9 @@ model_lstm = load_model('lstm_model.keras')
 
 mlp_file = open('mlp.pkl', 'rb')
 model_mlp = pickle.load(mlp_file)
+mlp_file.close()
+
+vectorizer = joblib.load('vectorizer.pkl')
 
 # # Function to load pickle files with version handling
 # def load_pickle(file_path):
@@ -220,13 +224,17 @@ def mlp():
     text_stem = [stemming(original_text)]
     text_wsw = [remove_stopword(text_stem)]
     text = [cleansing(str(text_wsw))]
-    vectorizer = CountVectorizer(decode_error='ignore', lowercase=True, min_df=1, max_df=2)
-    vectorized = vectorizer.fit(['text'])#new_class['text'].values.astype('U'))
-    trans = vectorizer.fit_transform(vectorized)
-    X = trans.toarray()
-    # X = pad_sequences(feature, maxlen=64)
+    
+    # vectorizer = CountVectorizer()#decode_error='ignore', lowercase=True, min_df=1, max_df=2)
+    # vectorized = vectorizer.fit(['text'])#new_class['text'].values.astype('U'))
+    # trans = vectorizer.fit_transform(vectorized)
+    # X = trans.toarray()
+    X = vectorizer.transform(text)
+
     prediction = model_mlp.predict(X)
-    get_sentiment = sentiment[np.argmax(prediction[0])]
+    predicted = list(prediction)
+    id2label = {0: 'neutral', 1: 'positive', 2: 'negative'}
+    get_sentiment = list(map(id2label.get, predicted))
 
     json_response = {
         'status_code': 200,
