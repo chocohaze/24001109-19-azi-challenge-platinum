@@ -126,7 +126,7 @@ def nn():
     original_text = request.form.get('text')
     text = [cleansing(original_text)]
     feature = tokenizer.texts_to_sequences(text)
-    X = pad_sequences(feature, maxlen=64)
+    X = pad_sequences(feature, maxlen=55)
     prediction = model_nn.predict(X)
     get_sentiment = sentiment[np.argmax(prediction[0])]
 
@@ -139,6 +139,9 @@ def nn():
     }
     response_data = jsonify(json_response)
     return response_data
+
+@swag_from('docs/lstm.yaml', methods=['POST'])
+@app.route('/lstm', methods=['POST'])
 
 def lstm():
     original_text = request.form.get('text')
