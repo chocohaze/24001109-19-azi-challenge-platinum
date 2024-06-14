@@ -1,6 +1,8 @@
 from types import new_class
 import numpy as np, h5py
 import pickle, re
+import sqlite3
+import pandas as pd
 
 import tensorflow as tf
 from tensorflow.keras.models import load_model
@@ -52,6 +54,13 @@ swagger_config = {
 }
 swagger = Swagger(app, template=swagger_template, config=swagger_config)
 
+conn = sqlite3.connect('database/platinum_challenge.db', check_same_thread=False)
+cursor = conn.cursor()
+cursor.execute('''CREATE TABLE IF NOT EXISTS LSTM (cleaned_text varchar(255), sentiment varchar(255));''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS MLPClassifier (cleaned_text varchar(255), sentiment varchar(255));''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS NN (cleaned_text varchar(255), sentiment varchar(255));''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS NN_file (cleaned_text varchar(255), sentiment varchar(255));''')
+
 max_features = 100000
 tokenizer = Tokenizer(num_words= max_features, split =' ', lower=True)
 sentiment = ['negative', 'neutral', 'positive']
@@ -97,6 +106,13 @@ def cleansing(text):
     text = re.sub(r'user',' ',text)
     text = re.sub('  +', ' ', text)
     text = text.lower()
+    return text
+
+def preprocess(text):
+    text = stemming(text)
+    text = remove_stopword(text)
+    # text = words_to_sentence(text)
+    text = cleansing(text)
     return text
 
 file = open('tokenizer.pickle', 'rb')
@@ -164,10 +180,12 @@ vectorizer = joblib.load('vectorizer.pkl')
 #     else:
 #         return "neutral"
 
+# Home
 @app.route('/')
 def home():
     return "Welcome to the model API!"
 
+# NN
 @swag_from('docs/nn.yaml', methods=['POST'])
 @app.route('/nn', methods=['POST'])
 
@@ -181,6 +199,12 @@ def nn():
     prediction = model_nn.predict(X)
     get_sentiment = sentiment[np.argmax(prediction[0])]
 
+    cleaned_text_str = ', '.join(text)
+
+    cursor.execute("INSERT INTO NN (cleaned_text) VALUES (?)", (cleaned_text_str,))
+    cursor.execute("INSERT INTO NN (sentiment) VALUES ('"+ get_sentiment +"')")
+    conn.commit()
+
     json_response = {
         'status_code': 200,
         'description': "NN Prediction Result",
@@ -191,6 +215,81 @@ def nn():
     }
     response_data = jsonify(json_response)
     return response_data
+
+# NN File
+@swag_from("docs/nn_file.yaml", methods=['POST'])
+@app.route('/nn_file', methods=['POST'])
+def nn_file():
+    file = request.files.getlist('file')[0]
+    colnames = ['text', 'sentiment']
+    df = pd.read_csv(file, sep='\t', header=None, names=colnames)
+    texts = df['text'].tolist()
+
+    cleaned_text = []
+
+    for text_input in texts:
+        text = stemming(text_input)
+        text = remove_stopword(text_input)
+        text = cleansing(text_input)
+
+        cursor.execute("INSERT INTO NN_file (cleaned_text) VALUES ('"+ text +"')")#(?)", (text,))
+        conn.commit()
+        cleaned_text.append(text)
+
+    get_sentiment_loop = []
+
+    for features in cleaned_text:
+        feature = tokenizer.texts_to_sequences(features)
+        X = pad_sequences(feature, maxlen=55)
+        prediction = model_nn.predict(X)
+        get_sentiment = sentiment[np.argmax(prediction[0])]
+        
+        cursor.execute("INSERT INTO NN_file (sentiment) VALUES (?)", (get_sentiment,))
+        conn.commit()
+        get_sentiment_loop.append(get_sentiment)
+
+    # feature = tokenizer.texts_to_sequences(text)
+    # X = pad_sequences(feature, maxlen=55)
+    # prediction = model_nn.predict(X)
+    # get_sentiment = sentiment[np.argmax(prediction[0])]
+
+    # cleaned_text_str = ', '.join(text)
+
+    # cursor.execute("INSERT INTO NN_file (cleaned_text) VALUES (?)", (cleaned_text_str,))
+    # cursor.execute("INSERT INTO NN_file (sentiment) VALUES ('"+ get_sentiment +"')")
+    # conn.commit()
+
+    # cleaned_text = []
+
+    # for text_input in texts:
+    # text = preprocess(text_input)
+    #     text_str = ', '.join(text_input)
+    #     cursor.execute("INSERT INTO NN_file (cleaned_text) VALUES (?)", (text_str,))
+
+    #     feature = tokenizer.texts_to_sequences(text_input)
+    #     X = pad_sequences(feature, maxlen=55)
+    #     prediction = model_nn.predict(X)
+    #     get_sentiment = sentiment[np.argmax(prediction[0])]
+
+    #     sentiment_str = ', '.join(get_sentiment)
+    #     # cursor.execute("INSERT INTO NN_file (cleaned_text) VALUES (?)", (text_str,))
+    #     cursor.execute("INSERT INTO NN_file (sentiment) VALUES (?)", (sentiment_str,))
+    #     conn.commit()
+
+    #     cleaned_text.append(text_input)
+
+    json_response = {
+    'status_code': 200,
+    'description': "NN_file Prediction Result",
+    'data': {
+        'text': texts,
+        'cleaned_text': cleaned_text,
+        'sentiment': get_sentiment_loop,}
+    }
+    response_data = jsonify(json_response)
+    return response_data
+        
+
 
 @swag_from('docs/lstm.yaml', methods=['POST'])
 @app.route('/lstm', methods=['POST'])
@@ -205,9 +304,15 @@ def lstm():
     prediction = model_lstm.predict(X)
     get_sentiment = sentiment[np.argmax(prediction[0])]
 
+    cleaned_text_str = ', '.join(text)
+
+    cursor.execute("INSERT INTO LSTM (cleaned_text) VALUES (?)", (cleaned_text_str,))
+    cursor.execute("INSERT INTO LSTM (sentiment) VALUES ('"+ get_sentiment +"')")
+    conn.commit()
+
     json_response = {
         'status_code': 200,
-        'description': "NN Prediction Result",
+        'description': "LSTM Prediction Result",
         'data': {
             'text': original_text,
             'cleaned_text': text,
@@ -236,9 +341,16 @@ def mlp():
     id2label = {0: 'neutral', 1: 'positive', 2: 'negative'}
     get_sentiment = list(map(id2label.get, predicted))
 
+    cleaned_text_str = ', '.join(text)
+    get_sentiment_str = ', '.join(get_sentiment)
+
+    cursor.execute("INSERT INTO MLPClassifier (cleaned_text) VALUES (?)", (cleaned_text_str,))
+    cursor.execute("INSERT INTO MLPClassifier (sentiment) VALUES (?)", (get_sentiment_str,))
+    conn.commit()
+
     json_response = {
         'status_code': 200,
-        'description': "NN Prediction Result",
+        'description': "MLP Classifier Prediction Result",
         'data': {
             'text': original_text,
             'cleaned_text': text,
