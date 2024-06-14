@@ -21,11 +21,11 @@ parameters:
     description: The text to classify
     required: true
     type: string
-  - name: file
-    in: formData
-    description: The LSTM model file to upload
-    required: true
-    type: file
+  # - name: file
+  #   in: formData
+  #   description: The LSTM model file to upload
+  #   required: true
+  #   type: file
 responses:
   '200':
     description: Model uploaded and text classified successfully

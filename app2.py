@@ -60,8 +60,8 @@ file = open('tokenizer.pickle', 'rb')
 feature_file = pickle.load(file)
 file.close()
 
-model_nn = load_model('nn_model.h5')
-model_lstm = load_model('lstm_model.h5')
+model_nn = load_model('nn_model.keras')
+model_lstm = load_model('lstm_model.keras')
 
 # # Function to load pickle files with version handling
 # def load_pickle(file_path):
@@ -125,9 +125,9 @@ model_lstm = load_model('lstm_model.h5')
 def nn():
     original_text = request.form.get('text')
     text = [cleansing(original_text)]
-    feature = tokenizer.texts_to_sequence(text)
-    feature = pad_sequences(feature, maxlen= feature_file.shape[1])
-    prediction = model_nn.predict(feature)
+    feature = tokenizer.texts_to_sequences(text)
+    X = pad_sequences(feature, maxlen=64)
+    prediction = model_nn.predict(X)
     get_sentiment = sentiment[np.argmax(prediction[0])]
 
     json_response = {
@@ -143,9 +143,9 @@ def nn():
 def lstm():
     original_text = request.form.get('text')
     text = [cleansing(original_text)]
-    feature = tokenizer.texts_to_sequence(text)
-    feature = pad_sequences(feature, maxlen= feature_file.shape[1])
-    prediction = model_lstm.predict(feature)
+    feature = tokenizer.texts_to_sequences(text)
+    X = pad_sequences(feature, maxlen=64)
+    prediction = model_lstm.predict(X)
     get_sentiment = sentiment[np.argmax(prediction[0])]
 
     json_response = {
@@ -159,7 +159,7 @@ def lstm():
     return response_data
 
 if __name__ == '__main__':
-    app.run(True)
+    app.run()
 
 #         file = request.files['file']
 #         file.save('nn_model.h5')

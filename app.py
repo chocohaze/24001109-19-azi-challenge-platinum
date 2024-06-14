@@ -100,11 +100,11 @@ def upload_nn():
     try:
         text = request.form.get('text')
         file = request.files['file']
-        file.save('nn_model.h5')
+        # file.save('nn_model.keras')
         logging.debug(f"Received file for NN model: {file.filename}")
         
         # Process text and file as needed
-        model = load_model_nn('nn_model.h5')
+        model = load_model_nn('nn_model.keras')
         
         if isinstance(model, str):
             logging.error(f"Error loading NN model: {model}")
@@ -123,11 +123,11 @@ def upload_lstm():
     try:
         text = request.form.get('text')
         file = request.files['file']
-        file.save('lstm_model.h5')
+        # file.save('lstm_model.keras')
         logging.debug(f"Received file for LSTM model: {file.filename}")
         
         # Process text and file as needed
-        model = load_model_lstm('lstm_model.h5')
+        model = load_model_lstm('lstm_model.keras')
         
         if isinstance(model, str):
             logging.error(f"Error loading LSTM model: {model}")
