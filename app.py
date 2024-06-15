@@ -315,7 +315,7 @@ def mlp_file():
         text =''.join(text)
         get_sentiment =''.join(get_sentiment)
 
-        cursor.execute("INSERT INTO LSTM_file (cleaned_text, sentiment) VALUES ('"+ text +"', '"+ get_sentiment +"')")
+        cursor.execute("INSERT INTO MLPClassifier_file (cleaned_text, sentiment) VALUES ('"+ text +"', '"+ get_sentiment +"')")
         conn.commit()
         cleaned_text.append({
             'text': text_input,

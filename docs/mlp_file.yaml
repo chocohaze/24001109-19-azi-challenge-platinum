@@ -1,8 +1,8 @@
 swagger: '2.0'
 post:
-  description: Endpoint to upload an MLP Classifier model and classify input text.
+  description: Endpoint to classify input file using MLP Classifier Model
   version: '1.0.0'
-  title: Upload MLP Classifier Model
+  title: Upload text file
 host: localhost:5000
 basepath: '/'
 schemes:
@@ -11,24 +11,19 @@ paths:
 /upload_nn:
 post:
 tags:
-  - name: Models
-summary: Upload an MLP Classifier model and classify input text
+  - name: Processing Input
+summary: Text classification from uploaded file using MLP Classifier Model
 consumes:
   - multipart/form-data
 parameters:
-  # - name: text
-  #   in: formData
-  #   description: The text to classify
-  #   required: true
-  #   type: string
   - name: file
     in: formData
-    description: The File to classify
+    description: The file to classify
     required: true
     type: file
 responses:
   '200':
-    description: Model uploaded and text classified successfully
+    description: Text classified successfully
     schema:
     type: object
     properties:

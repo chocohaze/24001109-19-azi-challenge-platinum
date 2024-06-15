@@ -1,8 +1,8 @@
 swagger: '2.0'
 post:
-  description: Endpoint to upload an LSTM model and classify input text.
+  description: Endpoint to classify input text using LSTM Model
   version: '1.0.0'
-  title: Upload LSTM Model
+  title: Input text
 host: localhost:5000
 basepath: '/'
 schemes:
@@ -11,8 +11,8 @@ paths:
 /upload_lstm:
 post:
 tags:
-  - name: Models
-summary: Upload an LSTM model and classify input text
+  - name: Processing Input
+summary: Text classification from uploaded file using LSTM Model
 consumes:
   - multipart/form-data
 parameters:
@@ -21,14 +21,9 @@ parameters:
     description: The text to classify
     required: true
     type: string
-  # - name: file
-  #   in: formData
-  #   description: The LSTM model file to upload
-  #   required: true
-  #   type: file
 responses:
   '200':
-    description: Model uploaded and text classified successfully
+    description: Text classified successfully
     schema:
     type: object
     properties:
