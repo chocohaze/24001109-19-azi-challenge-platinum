@@ -19,6 +19,7 @@ from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 import nltk
 nltk.download('stopwords')
 from nltk.corpus import stopwords
+from nltk import word_tokenize
 
 from flask import Flask, request, jsonify
 from flasgger import Swagger, swag_from, LazyJSONEncoder, LazyString
@@ -64,12 +65,6 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS LSTM_file (cleaned_text varchar(255
 cursor.execute('''CREATE TABLE IF NOT EXISTS MLPClassifier_file (cleaned_text varchar(255), sentiment varchar(255));''')
 cursor.execute('''CREATE TABLE IF NOT EXISTS NN_file (cleaned_text varchar(255), sentiment varchar(255));''')
 
-# Define max_features untuk model
-max_features = 100000
-
-# Define tokenizer
-tokenizer = Tokenizer(num_words= max_features, split =' ', lower=True)
-
 # Sentiment list
 sentiment = ['negative', 'neutral', 'positive']
 
@@ -100,37 +95,43 @@ def stemming(text):
 
 # Bikin fungsi hilangin stopword
 def remove_stopword(text):
-    return [word for word in text if not word in final_stopword]
+    tokens = nltk.word_tokenize(text)
+    return [word for word in tokens if not word in final_stopword]
 
-# Bikin fungsi cleansing
+# Bikin fungsi cleansing regex
 def cleansing(text):
-    url_pattern = r'((http|https)\:\/\/)?[a-zA-Z0-9\.\/\?\:@\-_=#]+\.([a-zA-Z]){2,6}([a-zA-Z0-9\.\&\/\?\:@\-_=#])*'
-    text = re.sub(url_pattern, " ", text)
-    text = re.sub(r'[^a-zA-Z0-9]', " ", text)
-    # text = re.sub(r'(\d+)', r' \1 ', text)
-    text = re.sub(r'(\d+)',"", text)
-    text = re.sub(r' {2,}', " ", text)
-    text = re.sub(r'\n\t',' ',text)
-    text = re.sub(r'user',' ',text)
-    text = re.sub('  +', ' ', text)
+    text = re.sub(r'\\t|\\n|\\u', ' ', text) # Menghapus special character
+    text = re.sub(r"https?:[^\s]+", ' ', text)  # Menghapus http / https
+    text = re.sub(r'(\b\w+)-\1\b', r'\1', text)
+    text = re.sub(r'[\\x]+[a-z0-9]{2}', '', text)  # Menghapus karakter yang dimulai dengan '\x' diikuti oleh dua karakter huruf atau angka
+    text = re.sub(r'[^a-zA-Z]+', ' ', text)  # Menghapus karakter kecuali huruf, dan spasi
+    text = re.sub(r'\brt\b|\buser\b', ' ', text) # Menghapus kata-kata 'rt' dan 'user'
+    return text
+
+# Bikin fungsi final clean
+def final_clean(text):
+    text = cleansing(text)
+    text = stemming(text)
+    text = remove_stopword(text)
+    text = ' '.join(text)
     text = text.lower()
     return text
 
-# file = open('tokenizer.pickle', 'rb')
-# feature_file = pickle.load(file)
-# file.close()
+# Load tokenizer
+tokenizer_file = open('tokenizer.pickle', 'rb')
+tokenizer = pickle.load(tokenizer_file)
+tokenizer_file.close()
+# Load vectorizer
+vectorizer = joblib.load('vectorizer.pkl')
 
 # Load model keras
-model_nn = load_model('nn_model.keras')
-model_lstm = load_model('lstm_model.keras')
-
+model_nn = load_model('model_nn.keras')
+model_lstm = load_model('model_lstm.keras')
 # Load model MLPClassifier
 mlp_file = open('mlp.pkl', 'rb')
 model_mlp = pickle.load(mlp_file)
 mlp_file.close()
 
-# Load vectorizer
-vectorizer = joblib.load('vectorizer.pkl')
 
 # Homepage
 @app.route('/')
@@ -143,16 +144,13 @@ def home():
 
 def nn():
     original_text = request.form.get('text')
-    text_stem = [stemming(original_text)]
-    text_wsw = [remove_stopword(text_stem)]
-    text = [cleansing(str(text_wsw))]
+    text = final_clean(original_text)
 
     feature = tokenizer.texts_to_sequences([text])
     X = pad_sequences(feature, maxlen=55)
-    prediction = model_nn.predict(X)
-    get_sentiment = sentiment[np.argmax(prediction[0])]
-
-    text =''.join(text)
+    result = model_nn.predict(X)
+    prediction = np.argmax(result)
+    get_sentiment = sentiment[prediction]
 
     cursor.execute("INSERT INTO NN (cleaned_text, sentiment) VALUES ('"+ text +"', '"+ get_sentiment +"')")
     conn.commit()
@@ -179,14 +177,13 @@ def nn_file():
 
     cleaned_text = []
     for text_input in texts:
-        text = stemming(text_input)
-        text = remove_stopword(text_input)
-        text = cleansing(text_input)
+        text = final_clean(text_input)
 
         feature = tokenizer.texts_to_sequences([text])
         X = pad_sequences(feature, maxlen=55)
-        prediction = model_nn.predict(X)
-        get_sentiment = sentiment[np.argmax(prediction[0])]
+        result = model_nn.predict(X)
+        prediction = np.argmax(result)
+        get_sentiment = sentiment[prediction]
 
         cursor.execute("INSERT INTO NN_file (cleaned_text, sentiment) VALUES ('"+ text +"', '"+ get_sentiment +"')")
         conn.commit()
@@ -209,16 +206,13 @@ def nn_file():
 
 def lstm():
     original_text = request.form.get('text')
-    text_stem = [stemming(original_text)]
-    text_wsw = [remove_stopword(text_stem)]
-    text = [cleansing(str(text_wsw))]
+    text = final_clean(original_text)
 
-    feature = tokenizer.texts_to_sequences(text)
-    X = pad_sequences(feature, maxlen=64)
-    prediction = model_lstm.predict(X)
-    get_sentiment = sentiment[np.argmax(prediction[0])]
-
-    text =''.join(text)
+    feature = tokenizer.texts_to_sequences([text])
+    X = pad_sequences(feature, maxlen=55)
+    result = model_lstm.predict(X)
+    prediction = np.argmax(result)
+    get_sentiment = sentiment[prediction]
 
     cursor.execute("INSERT INTO LSTM (cleaned_text, sentiment) VALUES ('"+ text +"', '"+ get_sentiment +"')")
     conn.commit()
@@ -245,14 +239,13 @@ def lstm_file():
 
     cleaned_text = []
     for text_input in texts:
-        text = stemming(text_input)
-        text = remove_stopword(text_input)
-        text = cleansing(text_input)
+        text = final_clean(text_input)
 
         feature = tokenizer.texts_to_sequences([text])
-        X = pad_sequences(feature, maxlen=64)
-        prediction = model_lstm.predict(X)
-        get_sentiment = sentiment[np.argmax(prediction[0])]
+        X = pad_sequences(feature, maxlen=55)
+        result = model_lstm.predict(X)
+        prediction = np.argmax(result)
+        get_sentiment = sentiment[prediction]
 
         cursor.execute("INSERT INTO LSTM_file (cleaned_text, sentiment) VALUES ('"+ text +"', '"+ get_sentiment +"')")
         conn.commit()
@@ -275,11 +268,9 @@ def lstm_file():
 
 def mlp():
     original_text = request.form.get('text')
-    text_stem = [stemming(original_text)]
-    text_wsw = [remove_stopword(text_stem)]
-    text = [cleansing(str(text_wsw))]
+    text = final_clean(original_text)
 
-    X = vectorizer.transform(text)
+    X = vectorizer.transform([text])
     prediction = model_mlp.predict(X)
     predicted = list(prediction)
     id2label = {0: 'neutral', 1: 'positive', 2: 'negative'}
@@ -313,11 +304,9 @@ def mlp_file():
 
     cleaned_text = []
     for text_input in texts:
-        text = [stemming(text_input)]
-        text = [remove_stopword(text)]
-        text = [cleansing(str(text))]
+        text = final_clean(text_input)
 
-        X = vectorizer.transform(text)
+        X = vectorizer.transform([text])
         prediction = model_mlp.predict(X)
         predicted = list(prediction)
         id2label = {0: 'neutral', 1: 'positive', 2: 'negative'}
